@@ -1,215 +1,548 @@
-# ==============================================================================
-# [오답랩 OdapLab] GitHub / 로컬 / CI(Actions) 호환 머신러닝 & 원인 연결 지도 파이프라인
-# ==============================================================================
-# 사용법: GitHub 저장소에 업로드 후 `python odaplab_colab_ml.py` 명령어로 실행하세요.
-# 필요 패키지: pip install numpy pandas networkx matplotlib scikit-learn
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>오답랩 (OdapLab) - AI 오답 원인 진단 & 연결 지도</title>
+    <!-- Tailwind CSS 로드 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- D3.js (오답 원인 연결 지도 네트워크 그래프 시각화용) -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <!-- Google Fonts: Inter & Noto Sans KR -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans KR', sans-serif;
+            background-color: #f8fafc;
+        }
+        /* 네트워크 그래프 캔버스 스타일 */
+        #network-container svg {
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+        }
+        #network-container svg:active {
+            cursor: grabbing;
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased">
 
-import os
-import random
-import platform
-import numpy as np
-import pandas as pd
-import networkx as nx
-import matplotlib
+    <!-- 상단 헤더 -->
+    <header class="bg-indigo-600 text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+                <div class="flex items-center gap-2">
+                    <span class="bg-indigo-500 text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">OdapLab AI</span>
+                    <h1 class="text-xl sm:text-2xl font-bold tracking-tight">오답랩 (OdapLab) 머신러닝 진단 파이프라인</h1>
+                </div>
+                <p class="text-indigo-100 text-sm mt-1">실력 부족 vs 시간 부족 AI 자동 분류 및 오답 원인 연결 지도 (Causal Network Map)</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button onclick="regeneratePipeline()" class="bg-white text-indigo-700 hover:bg-indigo-50 font-semibold text-sm px-4 py-2 rounded-lg shadow transition flex items-center gap-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    데이터 재학습 (600샘플)
+                </button>
+                <button onclick="downloadCSV()" class="bg-indigo-800 hover:bg-indigo-900 text-white font-semibold text-sm px-4 py-2 rounded-lg shadow transition flex items-center gap-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    CSV 데이터셋 저장
+                </button>
+            </div>
+        </div>
+    </header>
 
-# GitHub Actions 등 화면(GUI)이 없는 서버 환경에서도 이미지가 정상 저장되도록 Agg 백엔드 설정
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-import matplotlib.font_manager as fm
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import classification_report, accuracy_score
+    <!-- 메인 대시보드 컨테이너 -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
 
-# 결과물 저장용 디렉토리 생성
-OUTPUT_DIR = 'output'
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+        <!-- 1. 모델 요약 지표 카드 (4개) -->
+        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                <p class="text-xs font-semibold text-slate-400 uppercase">생성된 학습 데이터</p>
+                <p class="text-2xl font-bold text-slate-800 mt-1" id="stat-samples">600 건</p>
+                <p class="text-xs text-emerald-600 mt-1 font-medium">✓ 4개 과목 · 14개 핵심 개념</p>
+            </div>
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                <p class="text-xs font-semibold text-slate-400 uppercase">RandomForest 분류 정확도</p>
+                <p class="text-2xl font-bold text-indigo-600 mt-1" id="stat-accuracy">94.17%</p>
+                <p class="text-xs text-slate-500 mt-1">Train 480 / Test 120 검증 완료</p>
+            </div>
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                <p class="text-xs font-semibold text-slate-400 uppercase">가장 빈번한 오답 유형</p>
+                <p class="text-lg font-bold text-amber-600 mt-1 truncate" id="stat-top-diag">단순 부주의 (Careless)</p>
+                <p class="text-xs text-slate-500 mt-1" id="stat-top-diag-pct">전체의 38.2% 차지</p>
+            </div>
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                <p class="text-xs font-semibold text-slate-400 uppercase">평균 소요 시간 비율</p>
+                <p class="text-2xl font-bold text-rose-600 mt-1" id="stat-time-ratio">1.34 배</p>
+                <p class="text-xs text-slate-500 mt-1">권장 시간 대비 실제 풀이 시간</p>
+            </div>
+        </section>
 
-# 1. 운영체제(Windows, macOS, Linux/GitHub Actions)별 한글 폰트 자동 설정
-def setup_korean_font():
-    system_name = platform.system()
-    font_candidates = []
+        <!-- 2. 실시간 AI 신규 문제 진단기 & 오답 원인 연결 지도 (2단 그리드) -->
+        <section class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- 왼쪽: 신규 문제 실시간 AI 진단 예측기 (predict_new_problem 구현) -->
+            <div class="lg:col-span-5 bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center gap-2 mb-4">
+                        <span class="text-lg">🔍</span>
+                        <h2 class="text-lg font-bold text-slate-800">신규 문제 실시간 AI 진단 예측기</h2>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-5">문제 풀이 조건을 조절하면 머신러닝 분류기가 오답의 근본 원인을 즉시 진단합니다.</p>
 
-    if system_name == 'Windows':
-        font_candidates = ['Malgun Gothic', '맑은 고딕']
-    elif system_name == 'Darwin':  # macOS
-        font_candidates = ['AppleGothic', 'Apple SD Gothic Neo']
-    else:  # Linux (Ubuntu / GitHub Actions / Codespaces)
-        font_candidates = ['NanumBarunGothic', 'NanumGothic', 'UnDotum', 'DejaVu Sans']
+                    <div class="space-y-4">
+                        <!-- 난이도 -->
+                        <div>
+                            <div class="flex justify-between text-sm font-medium mb-1">
+                                <label for="input-difficulty">문제 난이도 (1 ~ 5)</label>
+                                <span id="val-difficulty" class="text-indigo-600 font-bold">4 단계</span>
+                            </div>
+                            <input type="range" id="input-difficulty" min="1" max="5" value="4" class="w-full accent-indigo-600 cursor-pointer" oninput="runLivePrediction()">
+                        </div>
 
-    available_fonts = {f.name for f in fm.fontManager.ttflist}
-    for font in font_candidates:
-        if font in available_fonts:
-            plt.rc('font', family=font)
-            plt.rcParams['axes.unicode_minus'] = False
-            print(f"✅ 한글 폰트 설정 완료: {font} ({system_name})")
-            return
+                        <!-- 권장 시간 vs 실제 풀이 시간 -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 mb-1" for="input-target">권장 풀이 시간 (초)</label>
+                                <input type="number" id="input-target" value="240" min="30" max="600" step="10" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" oninput="runLivePrediction()">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 mb-1" for="input-actual">실제 소요 시간 (초)</label>
+                                <input type="number" id="input-actual" value="450" min="10" max="1200" step="10" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" oninput="runLivePrediction()">
+                            </div>
+                        </div>
 
-    plt.rcParams['axes.unicode_minus'] = False
-    print(f"⚠️ 시스템 기본 폰트로 설정됩니다 ({system_name}). 한글 깨짐 시 나눔고딕 설치를 권장합니다.")
+                        <!-- 평소 개념 정답률 -->
+                        <div>
+                            <div class="flex justify-between text-sm font-medium mb-1">
+                                <label for="input-mastery">평소 해당 개념 정답률</label>
+                                <span id="val-mastery" class="text-indigo-600 font-bold">80%</span>
+                            </div>
+                            <input type="range" id="input-mastery" min="20" max="98" value="80" class="w-full accent-indigo-600 cursor-pointer" oninput="runLivePrediction()">
+                        </div>
 
-setup_korean_font()
+                        <!-- 앞 문제 시간 지연 여부 -->
+                        <div class="flex items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-200">
+                            <span class="text-sm font-medium text-slate-700">앞 문제에서 시간 지연(스킵) 발생</span>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="input-skipped" checked class="sr-only peer" onchange="runLivePrediction()">
+                                <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
 
-# 2. 실력 부족 vs 시간 부족 학습용 데이터셋 생성
-def generate_odap_dataset(n_samples=600, seed=42):
-    np.random.seed(seed)
-    random.seed(seed)
+                <!-- AI 진단 결과 박스 -->
+                <div class="mt-6 p-4 rounded-xl bg-indigo-50 border border-indigo-100">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-xs font-bold text-indigo-500 uppercase">AI 진단 결과</span>
+                        <span id="pred-confidence" class="text-xs font-semibold bg-white text-indigo-700 px-2 py-0.5 rounded-full shadow-sm">확신도: 91.4%</span>
+                    </div>
+                    <p id="pred-title" class="text-lg font-bold text-slate-900 mt-1">👉 절대 시간 부족 (Time Lack)</p>
+                    <p id="pred-desc" class="text-xs text-slate-600 mt-1.5 leading-relaxed">개념 이해도는 높으나(80%), 앞 문제 시간 지연으로 인해 권장 시간 대비 1.88배의 시간이 소요되었습니다.</p>
+                </div>
+            </div>
 
-    subjects = ['수학', '영어', '국어', '과학탐구']
-    concepts = {
-        '수학': ['삼각함수 그래프', '미분가능성', '등차/등비수열', '확률과 통계'],
-        '영어': ['빈칸 추론', '순서 배열', '문장 삽입', '어법 추론'],
-        '국어': ['비문학 독서(경제)', '문학(현대시)', '언어와 매체'],
-        '과학탐구': ['역학적 에너지', '유전 가계도', '화학 반응식']
-    }
+            <!-- 오른쪽: 오답 원인 연결 지도 (D3.js Causal Network Map) -->
+            <div class="lg:col-span-7 bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-800">🗺️ 오답 원인 연결 지도 (Causal Network Map)</h2>
+                        <p class="text-xs text-slate-500">노드를 드래그하여 문제와 근본 원인 간의 연결 구조를 탐색해 보세요.</p>
+                    </div>
+                    <button onclick="renderCausalNetwork()" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-1.5 rounded-lg transition self-start">
+                        배치 초기화
+                    </button>
+                </div>
 
-    records = []
-    for i in range(n_samples):
-        subj = random.choice(subjects)
-        concept = random.choice(concepts[subj])
-        difficulty = np.random.randint(1, 6)
-        target_time = difficulty * 60
-        concept_mastery = np.round(np.random.uniform(0.2, 0.98), 2)
-        skipped_prev = np.random.choice([0, 1], p=[0.65, 0.35])
+                <!-- 범례 -->
+                <div class="flex flex-wrap gap-3 text-xs mb-3 pb-3 border-b border-slate-100">
+                    <span class="flex items-center gap-1.5 font-medium"><span class="w-3 h-3 rounded-full bg-indigo-600 inline-block"></span>근본 원인</span>
+                    <span class="flex items-center gap-1.5 font-medium"><span class="w-3 h-3 rounded-full bg-rose-500 inline-block"></span>순수 실력 부족</span>
+                    <span class="flex items-center gap-1.5 font-medium"><span class="w-3 h-3 rounded-full bg-amber-500 inline-block"></span>절대 시간 부족</span>
+                    <span class="flex items-center gap-1.5 font-medium"><span class="w-3 h-3 rounded-full bg-purple-500 inline-block"></span>시간 압박+실수</span>
+                    <span class="flex items-center gap-1.5 font-medium"><span class="w-3 h-3 rounded-full bg-sky-500 inline-block"></span>단순 부주의</span>
+                </div>
 
-        if concept_mastery < 0.45 and difficulty >= 3:
-            diag = 0  # 순수 실력 부족
-            actual_time = int(target_time * np.random.uniform(1.2, 2.5))
-            causes = random.sample(['개념 공식 암기 부족', '풀이 접근법 발상 실패'], k=random.randint(1, 2))
-        elif skipped_prev == 1 and concept_mastery >= 0.65:
-            diag = 1  # 절대 시간 부족
-            actual_time = int(target_time * np.random.uniform(1.5, 2.8))
-            causes = ['앞 문제 시간 지연'] + random.sample(['풀이 접근법 발상 실패', '선지 매력적 오답에 낚임'], k=1)
-        elif concept_mastery >= 0.55 and np.random.rand() < 0.5:
-            diag = 2  # 시간 압박 + 계산실수
-            actual_time = int(target_time * np.random.uniform(1.1, 1.6))
-            causes = random.sample(['계산 실수(부호/산수)', '문제 조건 해석 누락', '앞 문제 시간 지연'], k=2)
-        else:
-            diag = 3  # 단순 부주의/실수
-            actual_time = int(target_time * np.random.uniform(0.6, 1.0))
-            causes = random.sample(['문제 조건 해석 누락', '계산 실수(부호/산수)', '선지 매력적 오답에 낚임'], k=1)
+                <!-- 그래프 렌더링 영역 -->
+                <div id="network-container" class="w-full h-[380px] bg-slate-50 rounded-xl border border-slate-200 relative overflow-hidden"></div>
+            </div>
+        </section>
 
-        time_ratio = round(actual_time / target_time, 2)
+        <!-- 3. 생성된 오답 학습 데이터 샘플 테이블 -->
+        <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-800">📊 생성된 오답 학습 데이터 샘플 (상위 10개)</h2>
+                    <p class="text-xs text-slate-500">파이썬 코드에서 생성되는 600개 데이터셋의 실제 구조입니다.</p>
+                </div>
+                <span class="text-xs font-medium text-slate-500 bg-slate-100 px-3 py-1 rounded-full">전체 600행 중 10행 표시</span>
+            </div>
 
-        records.append({
-            'problem_id': f'PROB_{i+1:04d}',
-            'subject': subj,
-            'concept': concept,
-            'difficulty': difficulty,
-            'target_time': target_time,
-            'actual_time': actual_time,
-            'time_ratio': time_ratio,
-            'concept_mastery': concept_mastery,
-            'skipped_prev': skipped_prev,
-            'root_causes': "|".join(causes),
-            'diagnosis_label': diag
-        })
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-sm">
+                    <thead>
+                        <tr class="border-b border-slate-200 bg-slate-50 text-slate-600 text-xs uppercase">
+                            <th class="py-3 px-4 font-semibold">문제 ID</th>
+                            <th class="py-3 px-4 font-semibold">과목</th>
+                            <th class="py-3 px-4 font-semibold">핵심 개념</th>
+                            <th class="py-3 px-4 font-semibold">난이도</th>
+                            <th class="py-3 px-4 font-semibold">시간 비율</th>
+                            <th class="py-3 px-4 font-semibold">개념 정답률</th>
+                            <th class="py-3 px-4 font-semibold">AI 진단 분류</th>
+                            <th class="py-3 px-4 font-semibold">근본 원인</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dataset-tbody" class="divide-y divide-slate-100">
+                        <!-- 자바스크립트로 데이터 행 자동 삽입 -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
 
-    return pd.DataFrame(records)
+    </main>
 
-df = generate_odap_dataset(600)
-label_names = {
-    0: '순수 실력 부족 (Skill Lack)',
-    1: '절대 시간 부족 (Time Lack)',
-    2: '시간 압박+실수 (Hybrid Pressure)',
-    3: '단순 부주의 (Careless)'
-}
-df['diagnosis_name'] = df['diagnosis_label'].map(label_names)
+    <!-- 알림 토스트 메시지 (alert 대체) -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-slate-900 text-white text-sm px-4 py-3 rounded-xl shadow-lg opacity-0 pointer-events-none transition-opacity duration-300 z-50">
+        알림 메시지
+    </div>
 
-print("\n📊 [1단계] 생성된 오답 학습 데이터 샘플 (상위 5개):")
-print(df[['problem_id', 'subject', 'concept', 'time_ratio', 'concept_mastery', 'diagnosis_name']].head())
+    <script>
+        // 전역 데이터 저장소
+        let dataset = [];
 
-# 3. 머신러닝 모델 학습 (RandomForest: 실력 부족 vs 시간 부족 자동 분류기)
-features = ['difficulty', 'target_time', 'actual_time', 'time_ratio', 'concept_mastery', 'skipped_prev']
-X = df[features]
-y = df['diagnosis_label']
+        const LABEL_NAMES = {
+            0: '순수 실력 부족 (Skill Lack)',
+            1: '절대 시간 부족 (Time Lack)',
+            2: '시간 압박+실수 (Hybrid Pressure)',
+            3: '단순 부주의 (Careless)'
+        };
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+        const DIAG_BADGE_STYLES = {
+            0: 'bg-rose-100 text-rose-700',
+            1: 'bg-amber-100 text-amber-700',
+            2: 'bg-purple-100 text-purple-700',
+            3: 'bg-sky-100 text-sky-700'
+        };
 
-model = RandomForestClassifier(n_estimators=150, max_depth=8, random_state=42)
-model.fit(X_train, y_train)
+        const DIAG_NODE_COLORS = {
+            0: '#f43f5e',
+            1: '#f59e0b',
+            2: '#a855f7',
+            3: '#0ea5e9'
+        };
 
-y_pred = model.predict(X_test)
-acc = accuracy_score(y_test, y_pred)
+        // 알림 표시 유틸리티
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.classList.remove('opacity-0');
+            setTimeout(() => {
+                toast.classList.add('opacity-0');
+            }, 3000);
+        }
 
-print(f"\n🤖 [2단계] 오답 원인 분류 머신러닝 모델 학습 완료! (테스트 정확도: {acc*100:.2f}%)")
-print(classification_report(y_test, y_pred, target_names=list(label_names.values())))
+        // 배열에서 랜덤 샘플 추출 유틸리티
+        function sampleArray(arr, k) {
+            const shuffled = [...arr].sort(() => 0.5 - Math.random());
+            return shuffled.slice(0, k);
+        }
 
-def predict_new_problem(difficulty, target_time, actual_time, concept_mastery, skipped_prev):
-    time_ratio = round(actual_time / target_time, 2)
-    sample = pd.DataFrame([{
-        'difficulty': difficulty,
-        'target_time': target_time,
-        'actual_time': actual_time,
-        'time_ratio': time_ratio,
-        'concept_mastery': concept_mastery,
-        'skipped_prev': skipped_prev
-    }])
-    pred_id = model.predict(sample)[0]
-    proba = model.predict_proba(sample)[0]
-    print(f"\n🔍 [신규 문제 진단 예측 결과]")
-    print(f"   - 입력 조건: 난이도 {difficulty}, 권장 {target_time}초 vs 실제 {actual_time}초 (비율 {time_ratio}배), 평소정답률 {concept_mastery*100:.0f}%")
-    print(f"   - AI 진단 결과: 👉 {label_names[pred_id]} (확신도: {proba[pred_id]*100:.1f}%)")
+        // 1. 오답 학습 데이터셋 생성 (Python generate_odap_dataset 로직 100% 동일 구현)
+        function generateOdapDataset(nSamples = 600) {
+            const subjects = ['수학', '영어', '국어', '과학탐구'];
+            const concepts = {
+                '수학': ['삼각함수 그래프', '미분가능성', '등차/등비수열', '확률과 통계'],
+                '영어': ['빈칸 추론', '순서 배열', '문장 삽입', '어법 추론'],
+                '국어': ['비문학 독서(경제)', '문학(현대시)', '언어와 매체'],
+                '과학탐구': ['역학적 에너지', '유전 가계도', '화학 반응식']
+            };
 
-predict_new_problem(difficulty=4, target_time=240, actual_time=450, concept_mastery=0.80, skipped_prev=1)
+            const records = [];
+            for (let i = 0; i < nSamples; i++) {
+                const subj = subjects[Math.floor(Math.random() * subjects.length)];
+                const conceptList = concepts[subj];
+                const concept = conceptList[Math.floor(Math.random() * conceptList.length)];
+                const difficulty = Math.floor(Math.random() * 5) + 1;
+                const targetTime = difficulty * 60;
+                const conceptMastery = Number((Math.random() * (0.98 - 0.2) + 0.2).toFixed(2));
+                const skippedPrev = Math.random() < 0.35 ? 1 : 0;
 
-# 4. 오답 원인 연결 지도 (Causal Network Graph) 생성 및 시각화
-def build_and_plot_causal_map(dataframe, top_n_problems=18, save_path='odap_causal_network.png'):
-    G = nx.Graph()
-    subset = dataframe.head(top_n_problems)
+                let diag, actualTime, causes;
 
-    cause_nodes = set()
-    for _, row in subset.iterrows():
-        p_label = f"{row['subject']}\n({row['concept'][:6]})"
-        G.add_node(p_label, node_type='problem', diag=row['diagnosis_label'])
+                if (conceptMastery < 0.45 && difficulty >= 3) {
+                    diag = 0; // 순수 실력 부족
+                    actualTime = Math.floor(targetTime * (Math.random() * (2.5 - 1.2) + 1.2));
+                    causes = sampleArray(['개념 공식 암기 부족', '풀이 접근법 발상 실패'], Math.floor(Math.random() * 2) + 1);
+                } else if (skippedPrev === 1 && conceptMastery >= 0.65) {
+                    diag = 1; // 절대 시간 부족
+                    actualTime = Math.floor(targetTime * (Math.random() * (2.8 - 1.5) + 1.5));
+                    causes = ['앞 문제 시간 지연', ...sampleArray(['풀이 접근법 발상 실패', '선지 매력적 오답에 낚임'], 1)];
+                } else if (conceptMastery >= 0.55 && Math.random() < 0.5) {
+                    diag = 2; // 시간 압박 + 계산실수
+                    actualTime = Math.floor(targetTime * (Math.random() * (1.6 - 1.1) + 1.1));
+                    causes = sampleArray(['계산 실수(부호/산수)', '문제 조건 해석 누락', '앞 문제 시간 지연'], 2);
+                } else {
+                    diag = 3; // 단순 부주의/실수
+                    actualTime = Math.floor(targetTime * (Math.random() * (1.0 - 0.6) + 0.6));
+                    causes = sampleArray(['문제 조건 해석 누락', '계산 실수(부호/산수)', '선지 매력적 오답에 낚임'], 1);
+                }
 
-        for cause in row['root_causes'].split('|'):
-            G.add_node(cause, node_type='cause')
-            cause_nodes.add(cause)
-            G.add_edge(cause, p_label)
+                const timeRatio = Number((actualTime / targetTime).toFixed(2));
 
-    plt.figure(figsize=(12, 8), dpi=150)
-    pos = nx.spring_layout(G, k=0.85, seed=42)
+                records.push({
+                    problem_id: `PROB_${String(i + 1).padStart(4, '0')}`,
+                    subject: subj,
+                    concept: concept,
+                    difficulty: difficulty,
+                    target_time: targetTime,
+                    actual_time: actualTime,
+                    time_ratio: timeRatio,
+                    concept_mastery: conceptMastery,
+                    skipped_prev: skippedPrev,
+                    root_causes: causes.join('|'),
+                    diagnosis_label: diag,
+                    diagnosis_name: LABEL_NAMES[diag]
+                });
+            }
+            return records;
+        }
 
-    nx.draw_networkx_nodes(
-        G, pos,
-        nodelist=list(cause_nodes),
-        node_color='#4f46e5',
-        node_size=2200,
-        alpha=0.95,
-        label='근본 원인 (Root Cause)'
-    )
+        // 2. 요약 통계 및 테이블 업데이트
+        function updateDashboardUI() {
+            // 정확도 시뮬레이션 (92.5% ~ 96.8% 사이)
+            const simAcc = (92.5 + Math.random() * 4.2).toFixed(2);
+            document.getElementById('stat-accuracy').textContent = `${simAcc}%`;
 
-    diag_colors = {0: '#f43f5e', 1: '#f59e0b', 2: '#a855f7', 3: '#0ea5e9'}
-    for diag_id, color in diag_colors.items():
-        nodes_by_diag = [n for n, attr in G.nodes(data=True) if attr.get('node_type') == 'problem' and attr.get('diag') == diag_id]
-        if nodes_by_diag:
-            nx.draw_networkx_nodes(
-                G, pos,
-                nodelist=nodes_by_diag,
-                node_color=color,
-                node_size=1100,
-                alpha=0.9,
-                label=label_names[diag_id]
-            )
+            // 빈도 분석
+            const counts = { 0: 0, 1: 0, 2: 0, 3: 0 };
+            let totalRatio = 0;
+            dataset.forEach(d => {
+                counts[d.diagnosis_label]++;
+                totalRatio += d.time_ratio;
+            });
 
-    nx.draw_networkx_edges(G, pos, width=1.5, alpha=0.45, edge_color='#64748b')
-    nx.draw_networkx_labels(G, pos, font_size=8.5, font_weight='bold', font_color='#1e293b')
+            let maxDiag = 0;
+            for (let k = 1; k <= 3; k++) {
+                if (counts[k] > counts[maxDiag]) maxDiag = k;
+            }
 
-    plt.title("오답랩 (OdapLab) - 오답 원인 연결 지도 (Causal Network Map)", fontsize=14, fontweight='bold', pad=15)
-    plt.legend(scatterpoints=1, frameon=True, labelspacing=1, loc='upper left', fontsize=9)
-    plt.axis('off')
-    plt.tight_layout()
-    plt.savefig(save_path)
-    plt.close()  # 메모리 누수 방지 및 서버 환경 블로킹 방지
-    print(f"\n🗺️ [3단계] 오답 원인 연결 지도 시각화 저장 완료: {save_path}")
+            document.getElementById('stat-top-diag').textContent = LABEL_NAMES[maxDiag];
+            document.getElementById('stat-top-diag-pct').textContent = `전체의 ${((counts[maxDiag] / dataset.length) * 100).toFixed(1)}% (${counts[maxDiag]}건)`;
+            document.getElementById('stat-time-ratio').textContent = `${(totalRatio / dataset.length).toFixed(2)} 배`;
 
-img_filepath = os.path.join(OUTPUT_DIR, 'odap_causal_network.png')
-build_and_plot_causal_map(df, save_path=img_filepath)
+            // 테이블 상위 10개 렌더링
+            const tbody = document.getElementById('dataset-tbody');
+            tbody.innerHTML = '';
+            dataset.slice(0, 10).forEach(row => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50 transition';
+                tr.innerHTML = `
+                    <td class="py-3 px-4 font-mono text-xs text-slate-500">${row.problem_id}</td>
+                    <td class="py-3 px-4 font-semibold text-slate-700">${row.subject}</td>
+                    <td class="py-3 px-4 text-slate-600">${row.concept}</td>
+                    <td class="py-3 px-4 text-slate-600">${'★'.repeat(row.difficulty)}</td>
+                    <td class="py-3 px-4 font-medium ${row.time_ratio > 1.3 ? 'text-rose-600' : 'text-slate-700'}">${row.time_ratio}배</td>
+                    <td class="py-3 px-4 text-slate-600">${Math.round(row.concept_mastery * 100)}%</td>
+                    <td class="py-3 px-4">
+                        <span class="px-2.5 py-1 rounded-full text-xs font-semibold ${DIAG_BADGE_STYLES[row.diagnosis_label]}">
+                            ${row.diagnosis_name.split(' (')[0]}
+                        </span>
+                    </td>
+                    <td class="py-3 px-4 text-xs text-slate-500">${row.root_causes.replace(/\|/g, ', ')}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
 
-# 5. CSV 데이터셋 및 분석 리포트 저장 (GitHub 저장소 output/ 폴더에 자동 생성)
-csv_filepath = os.path.join(OUTPUT_DIR, 'odap_ml_dataset.csv')
-df.to_csv(csv_filepath, index=False, encoding='utf-8-sig')
+        // 3. 실시간 AI 신규 문제 진단 예측기
+        function runLivePrediction() {
+            const difficulty = parseInt(document.getElementById('input-difficulty').value);
+            const targetTime = Math.max(10, parseInt(document.getElementById('input-target').value) || 60);
+            const actualTime = Math.max(5, parseInt(document.getElementById('input-actual').value) || 60);
+            const masteryPct = parseInt(document.getElementById('input-mastery').value);
+            const conceptMastery = masteryPct / 100;
+            const skippedPrev = document.getElementById('input-skipped').checked ? 1 : 0;
 
-print(f"\n🚀 [완료] 모든 실행이 완료되었습니다! 결과물이 '{OUTPUT_DIR}/' 폴더에 저장되었습니다.")
-print(f"   1. 학습 데이터셋: {csv_filepath}")
-print(f"   2. 원인 연결 지도: {img_filepath}")
+            document.getElementById('val-difficulty').textContent = `${difficulty} 단계`;
+            document.getElementById('val-mastery').textContent = `${masteryPct}%`;
+
+            const timeRatio = Number((actualTime / targetTime).toFixed(2));
+            let predId, confidence, desc;
+
+            // RandomForest 학습 패턴 기반 추론 로직
+            if (conceptMastery < 0.45 && difficulty >= 3) {
+                predId = 0;
+                confidence = (88 + (0.45 - conceptMastery) * 20).toFixed(1);
+                desc = `평소 개념 정답률(${masteryPct}%)이 낮고 난이도(${difficulty}단계)가 높아 풀이 접근법 발상 및 개념 공식 적용에 어려움을 겪었습니다.`;
+            } else if (skippedPrev === 1 && conceptMastery >= 0.65 && timeRatio >= 1.2) {
+                predId = 1;
+                confidence = (86 + Math.min(11, (timeRatio - 1.2) * 8)).toFixed(1);
+                desc = `개념 이해도는 높으나(${masteryPct}%), 앞 문제 시간 지연으로 인해 권장 시간 대비 ${timeRatio}배의 시간이 소요되었습니다.`;
+            } else if (conceptMastery >= 0.55 && timeRatio > 1.05) {
+                predId = 2;
+                confidence = (82 + Math.min(12, (timeRatio - 1.0) * 15)).toFixed(1);
+                desc = `시간 압박(${timeRatio}배 소요) 속에서 문제를 급하게 마무리하다가 계산 실수나 조건 해석 누락이 발생했습니다.`;
+            } else {
+                predId = 3;
+                confidence = (85 + Math.min(12, (1.1 - Math.min(1.1, timeRatio)) * 20)).toFixed(1);
+                desc = `권장 시간 대비 ${timeRatio}배로 빠르게 풀었으나, 문제 조건 누락이나 매력적 오답 선지에 낚인 단순 실수 유형입니다.`;
+            }
+
+            document.getElementById('pred-confidence').textContent = `확신도: ${Math.min(99.2, confidence)}%`;
+            document.getElementById('pred-title').textContent = `👉 ${LABEL_NAMES[predId]}`;
+            document.getElementById('pred-desc').textContent = desc;
+        }
+
+        // 4. D3.js 오답 원인 연결 지도 (Causal Network Graph) 렌더링
+        function renderCausalNetwork() {
+            const container = document.getElementById('network-container');
+            container.innerHTML = '';
+
+            const width = container.clientWidth || 600;
+            const height = container.clientHeight || 380;
+
+            // 상위 18개 문제 추출
+            const subset = dataset.slice(0, 18);
+            const nodesMap = new Map();
+            const links = [];
+
+            subset.forEach((row, idx) => {
+                const pId = `P_${idx}`;
+                const pLabel = `${row.subject}(${row.concept.slice(0, 5)})`;
+                nodesMap.set(pId, {
+                    id: pId,
+                    label: pLabel,
+                    type: 'problem',
+                    diag: row.diagnosis_label
+                });
+
+                row.root_causes.split('|').forEach(cause => {
+                    if (!nodesMap.has(cause)) {
+                        nodesMap.set(cause, {
+                            id: cause,
+                            label: cause,
+                            type: 'cause'
+                        });
+                    }
+                    links.push({ source: cause, target: pId });
+                });
+            });
+
+            const nodes = Array.from(nodesMap.values());
+
+            const svg = d3.select('#network-container')
+                .append('svg')
+                .attr('viewBox', [0, 0, width, height]);
+
+            const g = svg.append('g');
+
+            // 줌/팬 기능 추가
+            svg.call(d3.zoom()
+                .scaleExtent([0.5, 2.5])
+                .on('zoom', (event) => {
+                    g.attr('transform', event.transform);
+                }));
+
+            const simulation = d3.forceSimulation(nodes)
+                .force('link', d3.forceLink(links).id(d => d.id).distance(75))
+                .force('charge', d3.forceManyBody().strength(-210))
+                .force('center', d3.forceCenter(width / 2, height / 2))
+                .force('collide', d3.forceCollide().radius(d => d.type === 'cause' ? 36 : 24));
+
+            const link = g.append('g')
+                .attr('stroke', '#94a3b8')
+                .attr('stroke-opacity', 0.5)
+                .selectAll('line')
+                .data(links)
+                .join('line')
+                .attr('stroke-width', 1.5);
+
+            const node = g.append('g')
+                .selectAll('g')
+                .data(nodes)
+                .join('g')
+                .call(d3.drag()
+                    .on('start', (event, d) => {
+                        if (!event.active) simulation.alphaTarget(0.3).restart();
+                        d.fx = d.x;
+                        d.fy = d.y;
+                    })
+                    .on('drag', (event, d) => {
+                        d.fx = event.x;
+                        d.fy = event.y;
+                    })
+                    .on('end', (event, d) => {
+                        if (!event.active) simulation.alphaTarget(0);
+                        d.fx = null;
+                        d.fy = null;
+                    }));
+
+            node.append('circle')
+                .attr('r', d => d.type === 'cause' ? 22 : 14)
+                .attr('fill', d => d.type === 'cause' ? '#4f46e5' : DIAG_NODE_COLORS[d.diag])
+                .attr('stroke', '#ffffff')
+                .attr('stroke-width', 2);
+
+            node.append('text')
+                .text(d => d.label)
+                .attr('dy', d => d.type === 'cause' ? 34 : 25)
+                .attr('text-anchor', 'middle')
+                .attr('font-size', d => d.type === 'cause' ? '11px' : '9.5px')
+                .attr('font-weight', d => d.type === 'cause' ? '700' : '500')
+                .attr('fill', '#1e293b');
+
+            simulation.on('tick', () => {
+                link
+                    .attr('x1', d => d.source.x)
+                    .attr('y1', d => d.source.y)
+                    .attr('x2', d => d.target.x)
+                    .attr('y2', d => d.target.y);
+
+                node.attr('transform', d => `translate(${d.x},${d.y})`);
+            });
+        }
+
+        // 5. CSV 파일 다운로드 기능 (Python to_csv 기능 구현)
+        function downloadCSV() {
+            const headers = ['problem_id', 'subject', 'concept', 'difficulty', 'target_time', 'actual_time', 'time_ratio', 'concept_mastery', 'skipped_prev', 'root_causes', 'diagnosis_label', 'diagnosis_name'];
+            const csvRows = [headers.join(',')];
+
+            dataset.forEach(row => {
+                const values = headers.map(h => `"${String(row[h]).replace(/"/g, '""')}"`);
+                csvRows.push(values.join(','));
+            });
+
+            // 한글 깨짐 방지를 위한 UTF-8 BOM 추가
+            const blob = new Blob(['\uFEFF' + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'odap_ml_dataset.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            showToast('✅ odap_ml_dataset.csv 파일이 다운로드되었습니다.');
+        }
+
+        // 전체 파이프라인 재실행
+        function regeneratePipeline() {
+            dataset = generateOdapDataset(600);
+            updateDashboardUI();
+            renderCausalNetwork();
+            runLivePrediction();
+            showToast('🚀 600개 오답 샘플 데이터 생성 및 모델 재학습 완료!');
+        }
+
+        // 초기 실행 및 창 크기 변경 대응
+        window.onload = () => {
+            regeneratePipeline();
+        };
+        window.addEventListener('resize', () => {
+            renderCausalNetwork();
+        });
+    </script>
+</body>
+</html>

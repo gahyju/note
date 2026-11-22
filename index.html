@@ -1,33 +1,51 @@
 # ==============================================================================
-# [오답랩 OdapLab] Google Colab 머신러닝 학습 & 오답 원인 연결 지도 파이프라인
+# [오답랩 OdapLab] GitHub / 로컬 / CI(Actions) 호환 머신러닝 & 원인 연결 지도 파이프라인
 # ==============================================================================
+# 사용법: GitHub 저장소에 업로드 후 `python odaplab_colab_ml.py` 명령어로 실행하세요.
+# 필요 패키지: pip install numpy pandas networkx matplotlib scikit-learn
 
 import os
 import random
+import platform
 import numpy as np
 import pandas as pd
 import networkx as nx
+import matplotlib
+
+# GitHub Actions 등 화면(GUI)이 없는 서버 환경에서도 이미지가 정상 저장되도록 Agg 백엔드 설정
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, accuracy_score
 
-# 1. Colab 한글 폰트 자동 설치 및 설정 (그래프 깨짐 방지)
+# 결과물 저장용 디렉토리 생성
+OUTPUT_DIR = 'output'
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+# 1. 운영체제(Windows, macOS, Linux/GitHub Actions)별 한글 폰트 자동 설정
 def setup_korean_font():
-    try:
-        if not os.path.exists('/usr/share/fonts/truetype/nanum/NanumBarunGothic.ttf'):
-            print("⏳ 한글 폰트(Nanum)를 설치하는 중입니다...")
-            os.system('apt-get update -qq && apt-get install -y -qq fonts-nanum')
-        
-        font_path = '/usr/share/fonts/truetype/nanum/NanumBarunGothic.ttf'
-        if os.path.exists(font_path):
-            fm.fontManager.addfont(font_path)
-            plt.rc('font', family='NanumBarunGothic')
+    system_name = platform.system()
+    font_candidates = []
+
+    if system_name == 'Windows':
+        font_candidates = ['Malgun Gothic', '맑은 고딕']
+    elif system_name == 'Darwin':  # macOS
+        font_candidates = ['AppleGothic', 'Apple SD Gothic Neo']
+    else:  # Linux (Ubuntu / GitHub Actions / Codespaces)
+        font_candidates = ['NanumBarunGothic', 'NanumGothic', 'UnDotum', 'DejaVu Sans']
+
+    available_fonts = {f.name for f in fm.fontManager.ttflist}
+    for font in font_candidates:
+        if font in available_fonts:
+            plt.rc('font', family=font)
             plt.rcParams['axes.unicode_minus'] = False
-            print("✅ 한글 폰트 설정 완료!")
-    except Exception as e:
-        print(f"⚠️ 폰트 설정 알림: {e}")
+            print(f"✅ 한글 폰트 설정 완료: {font} ({system_name})")
+            return
+
+    plt.rcParams['axes.unicode_minus'] = False
+    print(f"⚠️ 시스템 기본 폰트로 설정됩니다 ({system_name}). 한글 깨짐 시 나눔고딕 설치를 권장합니다.")
 
 setup_korean_font()
 
@@ -182,20 +200,16 @@ def build_and_plot_causal_map(dataframe, top_n_problems=18, save_path='odap_caus
     plt.axis('off')
     plt.tight_layout()
     plt.savefig(save_path)
-    plt.show()
+    plt.close()  # 메모리 누수 방지 및 서버 환경 블로킹 방지
     print(f"\n🗺️ [3단계] 오답 원인 연결 지도 시각화 저장 완료: {save_path}")
 
-build_and_plot_causal_map(df)
+img_filepath = os.path.join(OUTPUT_DIR, 'odap_causal_network.png')
+build_and_plot_causal_map(df, save_path=img_filepath)
 
-# 5. CSV 데이터셋 및 원인 연결 지도 이미지 로컬 다운로드 (Colab 전용)
-csv_filename = 'odap_ml_dataset.csv'
-img_filename = 'odap_causal_network.png'
-df.to_csv(csv_filename, index=False, encoding='utf-8-sig')
+# 5. CSV 데이터셋 및 분석 리포트 저장 (GitHub 저장소 output/ 폴더에 자동 생성)
+csv_filepath = os.path.join(OUTPUT_DIR, 'odap_ml_dataset.csv')
+df.to_csv(csv_filepath, index=False, encoding='utf-8-sig')
 
-try:
-    from google.colab import files
-    print("\n📥 Google Colab 환경 감지: 파일 다운로드를 시작합니다...")
-    files.download(csv_filename)
-    files.download(img_filename)
-except ImportError:
-    print(f"\n💾 로컬 환경에서 실행되었습니다. 현재 폴더에 '{csv_filename}' 및 '{img_filename}' 파일이 저장되었습니다.")
+print(f"\n🚀 [완료] 모든 실행이 완료되었습니다! 결과물이 '{OUTPUT_DIR}/' 폴더에 저장되었습니다.")
+print(f"   1. 학습 데이터셋: {csv_filepath}")
+print(f"   2. 원인 연결 지도: {img_filepath}")

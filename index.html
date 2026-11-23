@@ -1,4 +1,130 @@
-<!-- ... existing code ... -->
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>오답랩 (OdapLab) - 맞춤형 AI 오답 노트 & 원인 연결 지도</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Fonts: Pretendard & Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
+            background-color: #f8fafc;
+            color: #0f172a;
+        }
+        .canvas-grid {
+            background-size: 24px 24px;
+            background-image: radial-gradient(circle, #cbd5e1 1.2px, transparent 1.2px);
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); opacity: 0.7; }
+            50% { transform: scale(1.05); opacity: 0.3; }
+            100% { transform: scale(0.95); opacity: 0.7; }
+        }
+        .node-pulse {
+            animation: pulse-ring 3s infinite ease-in-out;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 9999px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- 상단 네비게이션 바 -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-200 shrink-0">
+                    <i data-lucide="network" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-lg font-extrabold tracking-tight text-slate-900">오답랩 <span class="text-indigo-600">OdapLab</span></h1>
+                        <span class="hidden sm:inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100">AI 개인화 오답 노트</span>
+                    </div>
+                    <p class="text-xs text-slate-500 hidden sm:block">학습된 AI로 실력·시간 부족 자동 분류 & 원인 연결 지도</p>
+                </div>
+            </div>
+
+            <!-- 탭 전환 메뉴 -->
+            <nav class="flex items-center bg-slate-100 p-1 rounded-xl">
+                <button onclick="switchTab('register')" id="tab-register" class="tab-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold bg-white text-indigo-600 shadow-sm transition-all">
+                    <i data-lucide="camera" class="w-4 h-4"></i>
+                    <span>오답 AI 등록</span>
+                </button>
+                <button onclick="switchTab('map')" id="tab-map" class="tab-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900 transition-all">
+                    <i data-lucide="git-fork" class="w-4 h-4"></i>
+                    <span>원인 연결 지도</span>
+                </button>
+                <button onclick="switchTab('analytics')" id="tab-analytics" class="tab-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900 transition-all">
+                    <i data-lucide="pie-chart" class="w-4 h-4"></i>
+                    <span>실력 vs 시간 분석</span>
+                </button>
+            </nav>
+
+            <!-- 데이터 관리 버튼 -->
+            <div class="hidden md:flex items-center gap-2">
+                <button onclick="exportDataJSON()" class="text-xs font-medium text-slate-600 hover:text-indigo-600 px-3 py-2 rounded-lg border border-slate-200 hover:border-indigo-200 bg-white flex items-center gap-1.5 transition">
+                    <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                    <span>데이터 백업</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 알림 메시지 토스트 -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- 메인 컨텐츠 영역 -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+        <!-- ========================================================= -->
+        <!-- [뷰 1] 문제 사진 등록 & AI 실력/시간 부족 자동 판별         -->
+        <!-- ========================================================= -->
+        <section id="view-register" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- 좌측: 문제 사진 업로드 영역 (5칸) -->
+            <div class="lg:col-span-5 flex flex-col gap-4">
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                            <span class="w-6 h-6 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-xs font-extrabold">1</span>
+                            틀린 문제 사진 업로드
+                        </h2>
+                        <span class="text-xs text-slate-400">드래그 또는 Ctrl+V 붙여넣기</span>
+                    </div>
+
+                    <!-- 이미지 드롭존 -->
+                    <div id="drop-zone" onclick="document.getElementById('file-input').click()" class="relative group cursor-pointer border-2 border-dashed border-slate-300 hover:border-indigo-500 bg-slate-50 hover:bg-indigo-50/30 rounded-xl p-6 text-center transition-all min-h-[240px] flex flex-col items-center justify-center overflow-hidden">
+                        <input type="file" id="file-input" accept="image/*" class="hidden" onchange="handleImageFile(this.files[0])">
+                        
+                        <div id="upload-placeholder" class="flex flex-col items-center">
+                            <div class="w-12 h-12 rounded-full bg-white shadow-sm border border-slate-200 flex items-center justify-center text-indigo-600 mb-3 group-hover:scale-110 transition-transform">
+                                <i data-lucide="image-plus" class="w-6 h-6"></i>
+                            </div>
+                            <p class="text-sm font-semibold text-slate-700">클릭하여 문제 사진 선택</p>
+                            <p class="text-xs text-slate-400 mt-1">또는 화면 캡처 후 Ctrl+V 로 바로 붙여넣기</p>
+                        </div>
+
+                        <img id="preview-image" src="" alt="문제 미리보기" class="hidden max-h-[280px] w-auto rounded-lg shadow-sm object-contain">
+                        <button id="remove-img-btn" type="button" onclick="removeImage(event)" class="hidden absolute top-3 right-3 bg-slate-900/75 hover:bg-rose-600 text-white p-1.5 rounded-lg text-xs backdrop-blur-sm transition">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+
                     <!-- 기본 메타 정보 -->
                     <div class="grid grid-cols-2 gap-3 mt-4">
                         <div>
@@ -18,7 +144,7 @@
                         </div>
                     </div>
 
-                    <!-- AI 판별용 추가 피처 입력 (평소 단원 이해도 & 앞 문제 지연 여부) -->
+                    <!-- AI 판별용 추가 피처 입력 -->
                     <div class="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-3">
                         <div>
                             <div class="flex justify-between text-xs font-semibold mb-1">
@@ -55,18 +181,18 @@
                     <!-- AI 예측 결과 배너 -->
                     <div id="ai-prediction-banner" class="hidden mb-4 p-3.5 rounded-xl bg-indigo-50/90 border border-indigo-200 flex items-center justify-between gap-3">
                         <div class="flex items-center gap-2.5">
-                            <div class="p-2 bg-indigo-600 text-white rounded-lg">
+                            <div class="p-2 bg-indigo-600 text-white rounded-lg shrink-0">
                                 <i data-lucide="cpu" class="w-4 h-4"></i>
                             </div>
                             <div>
-                                <div class="text-xs font-bold text-indigo-950" id="ai-pred-title">AI 판별 완료: 절대 시간 부족 (확신도 89%)</div>
-                                <div class="text-[11px] text-indigo-700" id="ai-pred-reason">평소 개념 이해도(75%)는 높으나 권장 시간 대비 2.2배 초과되어 시간 부족으로 분류되었습니다.</div>
+                                <div class="text-xs font-bold text-indigo-950" id="ai-pred-title">AI 판별 완료</div>
+                                <div class="text-[11px] text-indigo-700" id="ai-pred-reason"></div>
                             </div>
                         </div>
-                        <span class="text-[10px] font-bold px-2 py-1 rounded bg-white text-indigo-600 border border-indigo-200 shrink-0" id="ai-model-version">내 데이터 4건 학습됨</span>
+                        <span class="text-[10px] font-bold px-2 py-1 rounded bg-white text-indigo-600 border border-indigo-200 shrink-0" id="ai-model-version">학습됨</span>
                     </div>
 
-                    <!-- 소요 시간 비교 슬라이더 (AI 예측을 위해 상단 배치) -->
+                    <!-- 소요 시간 비교 슬라이더 -->
                     <div class="bg-slate-50 p-4 rounded-xl border border-slate-200/80 grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                         <div>
                             <div class="flex justify-between text-xs font-semibold mb-1">
@@ -84,28 +210,96 @@
                         </div>
                     </div>
 
-                    <!-- 진단 유형 4가지 카드 선택 (AI가 자동 선택하며, 사용자가 직접 수정도 가능) -->
+                    <!-- 진단 유형 4가지 카드 선택 -->
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="diagnosis-cards">
-<!-- ... existing code ... -->
-                    <!-- 소요 시간 비교 슬라이더 -->
-                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200/80 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <div class="flex justify-between text-xs font-semibold mb-1">
-                                <span class="text-slate-600">목표 권장 시간</span>
-                                <span id="target-time-val" class="text-indigo-600 font-bold">2분 00초</span>
+                        <label class="diag-card cursor-pointer relative rounded-xl border-2 border-slate-200 p-3.5 hover:border-rose-300 transition-all has-[:checked]:border-rose-500 has-[:checked]:bg-rose-50/40">
+                            <input type="radio" name="diagnosisType" value="skill_lack" class="sr-only" checked>
+                            <div class="flex items-start gap-3">
+                                <div class="p-2 rounded-lg bg-rose-100 text-rose-600 shrink-0">
+                                    <i data-lucide="book-x" class="w-5 h-5"></i>
+                                </div>
+                                <div>
+                                    <div class="text-sm font-bold text-slate-900">순수 실력 부족</div>
+                                    <p class="text-xs text-slate-500 mt-0.5">시간이 충분했어도 개념·공식·접근법을 몰라 못 푼 문제</p>
+                                </div>
                             </div>
-                            <input type="range" id="target-time" min="30" max="600" step="30" value="120" oninput="updateTimeDisplay()" class="w-full accent-indigo-600 cursor-pointer">
-                        </div>
-                        <div>
-                            <div class="flex justify-between text-xs font-semibold mb-1">
-                                <span class="text-slate-600">실제 소요 시간</span>
-                                <span id="actual-time-val" class="text-rose-600 font-bold">4분 30초</span>
+                        </label>
+
+                        <label class="diag-card cursor-pointer relative rounded-xl border-2 border-slate-200 p-3.5 hover:border-amber-300 transition-all has-[:checked]:border-amber-500 has-[:checked]:bg-amber-50/40">
+                            <input type="radio" name="diagnosisType" value="time_lack" class="sr-only">
+                            <div class="flex items-start gap-3">
+                                <div class="p-2 rounded-lg bg-amber-100 text-amber-600 shrink-0">
+                                    <i data-lucide="hourglass" class="w-5 h-5"></i>
+                                </div>
+                                <div>
+                                    <div class="text-sm font-bold text-slate-900">절대 시간 부족</div>
+                                    <p class="text-xs text-slate-500 mt-0.5">풀 수 있는 실력이지만 앞 문제 지연으로 시간이 모자람</p>
+                                </div>
                             </div>
-                            <input type="range" id="actual-time" min="10" max="900" step="10" value="270" oninput="updateTimeDisplay()" class="w-full accent-rose-500 cursor-pointer">
-                        </div>
+                        </label>
+
+                        <label class="diag-card cursor-pointer relative rounded-xl border-2 border-slate-200 p-3.5 hover:border-purple-300 transition-all has-[:checked]:border-purple-500 has-[:checked]:bg-purple-50/40">
+                            <input type="radio" name="diagnosisType" value="hybrid_pressure" class="sr-only">
+                            <div class="flex items-start gap-3">
+                                <div class="p-2 rounded-lg bg-purple-100 text-purple-600 shrink-0">
+                                    <i data-lucide="zap" class="w-5 h-5"></i>
+                                </div>
+                                <div>
+                                    <div class="text-sm font-bold text-slate-900">시간 압박 + 계산실수</div>
+                                    <p class="text-xs text-slate-500 mt-0.5">풀이 속도가 느려 조급해지면서 부호·조건 실수 유발</p>
+                                </div>
+                            </div>
+                        </label>
+
+                        <label class="diag-card cursor-pointer relative rounded-xl border-2 border-slate-200 p-3.5 hover:border-sky-300 transition-all has-[:checked]:border-sky-500 has-[:checked]:bg-sky-50/40">
+                            <input type="radio" name="diagnosisType" value="careless" class="sr-only">
+                            <div class="flex items-start gap-3">
+                                <div class="p-2 rounded-lg bg-sky-100 text-sky-600 shrink-0">
+                                    <i data-lucide="eye-off" class="w-5 h-5"></i>
+                                </div>
+                                <div>
+                                    <div class="text-sm font-bold text-slate-900">단순 부주의 / 실수</div>
+                                    <p class="text-xs text-slate-500 mt-0.5">시간 여유도 있었고 개념도 알지만 발문을 잘못 읽음</p>
+                                </div>
+                            </div>
+                        </label>
                     </div>
                 </div>
-<!-- ... existing code ... -->
+
+                <!-- [차별화 기능 2] 오답 원인 연결 지도 태깅 -->
+                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                    <h2 class="text-base font-bold text-slate-800 flex items-center gap-2 mb-1">
+                        <span class="w-6 h-6 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-xs font-extrabold">3</span>
+                        오답 원인 연결 지도 노드 태깅
+                    </h2>
+                    <p class="text-xs text-slate-500 mb-4">이 문제의 근본 원인을 선택하면 <strong>원인 연결 지도</strong>에서 같은 원인으로 틀린 다른 문제들과 자동 연결됩니다.</p>
+
+                    <!-- 근본 원인 태그 선택 -->
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-slate-700 mb-2">근본 원인 태그 (복수 선택 가능)</label>
+                        <div id="cause-chips" class="flex flex-wrap gap-2"></div>
+                        <div class="flex gap-2 mt-2.5">
+                            <input type="text" id="custom-cause-input" placeholder="새 원인 노드 추가 (예: 그래프 개형 추론 미숙)" class="flex-1 text-xs rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <button type="button" onclick="addCustomCause()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition">
+                                + 원인 추가
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 연쇄 오답 연결 -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-100">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">선행/연관 문제 연결 (선택)</label>
+                            <select id="parent-problem-select" class="w-full text-xs rounded-lg border border-slate-200 px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                <option value="">연결할 이전 오답 없음 (독립 문항)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">핵심 행동 교정 메모</label>
+                            <input type="text" id="input-memo" placeholder="예: 3분 넘어가면 별표 치고 넘어가기" class="w-full text-xs rounded-lg border border-slate-200 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                    </div>
+
                     <!-- 저장 버튼 -->
                     <div class="mt-5 flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-100">
                         <span class="text-[11px] text-slate-500 flex items-center gap-1">
@@ -120,8 +314,372 @@
                 </div>
             </div>
         </section>
-<!-- ... existing code ... -->
-        // 5. 시간 슬라이더 & 원인 칩 UI 로직
+
+        <!-- ========================================================= -->
+        <!-- [뷰 2] 오답 원인 연결 지도 (Interactive Causal Map)         -->
+        <!-- ========================================================= -->
+        <section id="view-map" class="hidden flex-col gap-4">
+            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                        <i data-lucide="git-fork" class="w-5 h-5 text-indigo-600"></i>
+                        오답 원인 연결 지도 (Causal Network Map)
+                    </h2>
+                    <p class="text-xs text-slate-500">중앙의 <strong>근본 원인 노드(보라색)</strong>와 연결된 <strong>오답 문제 노드</strong>를 클릭해 취약점 사슬을 확인하세요.</p>
+                </div>
+                <div class="flex flex-wrap items-center gap-3 text-xs">
+                    <span class="flex items-center gap-1.5 font-medium"><span class="w-3 h-3 rounded-full bg-indigo-600 inline-block"></span>근본 원인 허브</span>
+                    <span class="flex items-center gap-1.5 font-medium"><span class="w-3 h-3 rounded-full bg-rose-500 inline-block"></span>실력 부족</span>
+                    <span class="flex items-center gap-1.5 font-medium"><span class="w-3 h-3 rounded-full bg-amber-500 inline-block"></span>시간 부족</span>
+                    <span class="flex items-center gap-1.5 font-medium"><span class="w-3 h-3 rounded-full bg-purple-500 inline-block"></span>시간+실수</span>
+                    <select id="map-subject-filter" onchange="renderCausalMap()" class="ml-2 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold bg-slate-50">
+                        <option value="ALL">전체 과목 보기</option>
+                        <option value="수학">수학</option>
+                        <option value="영어">영어</option>
+                        <option value="국어">국어</option>
+                        <option value="과학탐구">과학탐구</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                <!-- 인터랙티브 SVG 네트워크 맵 (8칸) -->
+                <div class="lg:col-span-8 bg-white rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden h-[540px] canvas-grid" id="map-container">
+                    <svg id="causal-svg" class="w-full h-full cursor-grab active:cursor-grabbing"></svg>
+                    <div class="absolute bottom-3 left-3 bg-white/90 backdrop-blur px-3 py-1.5 rounded-lg border border-slate-200 text-[11px] text-slate-500">
+                        💡 노드를 클릭하면 우측 상세 카드에서 문제 사진과 연결 관계를 확인할 수 있습니다.
+                    </div>
+                </div>
+
+                <!-- 선택된 노드 상세 정보 패널 (4칸) -->
+                <div class="lg:col-span-4 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col justify-between h-[540px] overflow-y-auto" id="node-detail-panel">
+                    <div>
+                        <div class="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-1">NODE INSPECTOR</div>
+                        <h3 id="detail-title" class="text-lg font-extrabold text-slate-900">노드를 선택해주세요</h3>
+                        <p id="detail-subtitle" class="text-xs text-slate-500 mt-1">지도에서 원인 허브 또는 문제 노드를 클릭하면 연결된 오답 사진과 처방이 표시됩니다.</p>
+                        
+                        <div id="detail-content" class="mt-4 space-y-4">
+                            <div class="p-4 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-600 leading-relaxed">
+                                <strong>연결 지도 활용 팁:</strong><br>
+                                여러 문제와 선이 많이 연결된 <strong>근본 원인 노드</strong>일수록 내 성적을 깎아먹는 최우선 교정 대상입니다.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="detail-actions" class="hidden pt-4 border-t border-slate-100 flex justify-end">
+                        <button id="delete-node-btn" class="text-xs text-rose-600 hover:bg-rose-50 px-3 py-2 rounded-lg font-semibold flex items-center gap-1 transition">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> 이 오답 삭제
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- [뷰 3] 실력 부족 vs 시간 부족 정밀 진단 & 오답 리스트     -->
+        <!-- ========================================================= -->
+        <section id="view-analytics" class="hidden flex-col gap-6">
+            
+            <!-- 상단 요약 KPI 카드 4종 -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                    <div class="flex items-center justify-between text-rose-600 mb-2">
+                        <span class="text-xs font-bold">순수 실력 부족</span>
+                        <i data-lucide="book-x" class="w-4 h-4"></i>
+                    </div>
+                    <div class="text-2xl font-extrabold text-slate-900" id="stat-skill-pct">0%</div>
+                    <p class="text-xs text-slate-500 mt-1" id="stat-skill-count">총 0문항 · 개념 재학습 필요</p>
+                </div>
+
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                    <div class="flex items-center justify-between text-amber-600 mb-2">
+                        <span class="text-xs font-bold">절대 시간 부족</span>
+                        <i data-lucide="hourglass" class="w-4 h-4"></i>
+                    </div>
+                    <div class="text-2xl font-extrabold text-slate-900" id="stat-time-pct">0%</div>
+                    <p class="text-xs text-slate-500 mt-1" id="stat-time-count">총 0문항 · 타임어택 훈련 필요</p>
+                </div>
+
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                    <div class="flex items-center justify-between text-purple-600 mb-2">
+                        <span class="text-xs font-bold">시간 압박 + 실수</span>
+                        <i data-lucide="zap" class="w-4 h-4"></i>
+                    </div>
+                    <div class="text-2xl font-extrabold text-slate-900" id="stat-hybrid-pct">0%</div>
+                    <p class="text-xs text-slate-500 mt-1" id="stat-hybrid-count">총 0문항 · 풀이 루틴 단축 필요</p>
+                </div>
+
+                <div class="bg-indigo-600 p-5 rounded-2xl text-white shadow-md shadow-indigo-200">
+                    <div class="flex items-center justify-between text-indigo-100 mb-2">
+                        <span class="text-xs font-bold">AI 맞춤 학습 처방</span>
+                        <i data-lucide="sparkles" class="w-4 h-4"></i>
+                    </div>
+                    <div class="text-sm font-bold leading-snug" id="ai-prescription-title">데이터 분석 중...</div>
+                    <p class="text-xs text-indigo-100 mt-1.5 leading-relaxed" id="ai-prescription-desc">오답이 쌓이면 실력 보완과 시간 관리 중 우선순위를 제시합니다.</p>
+                </div>
+            </div>
+
+            <!-- 실력 vs 시간 비율 게이지 바 & 최다 원인 랭킹 -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                <div class="lg:col-span-7 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                    <h3 class="text-sm font-bold text-slate-800 mb-1">실력 요인 vs 시간 요인 점유율 비교</h3>
+                    <p class="text-xs text-slate-500 mb-5">단순 오답 개수가 아니라 '왜 틀렸는지'의 비율을 보여줍니다.</p>
+                    
+                    <div class="w-full h-7 rounded-full bg-slate-100 overflow-hidden flex shadow-inner" id="ratio-bar-container">
+                        <!-- JS 동적 렌더링 -->
+                    </div>
+                    <div class="flex flex-wrap justify-between gap-2 mt-3 text-xs font-semibold" id="ratio-legend"></div>
+
+                    <div class="mt-6 pt-5 border-t border-slate-100">
+                        <h4 class="text-xs font-bold text-slate-700 mb-3">문항별 목표 시간 대비 실제 소요 시간 초과 현황</h4>
+                        <div id="time-overrun-list" class="space-y-2.5"></div>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-5 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                    <h3 class="text-sm font-bold text-slate-800 mb-1">연결 지도 핵심 원인 TOP 5</h3>
+                    <p class="text-xs text-slate-500 mb-4">가장 많은 오답 문항과 연결된 근본 원인 순위입니다.</p>
+                    <div id="top-causes-list" class="space-y-3"></div>
+                </div>
+            </div>
+
+            <!-- 저장된 오답 문제 사진 카드 갤러리 -->
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                    <h3 class="text-base font-bold text-slate-800">저장된 오답 노트 보관함</h3>
+                    <div class="flex gap-1.5" id="gallery-filter-btns">
+                        <button onclick="renderGallery('ALL')" class="px-3 py-1 rounded-lg text-xs font-semibold bg-indigo-600 text-white">전체</button>
+                        <button onclick="renderGallery('skill_lack')" class="px-3 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-rose-50 hover:text-rose-600">실력 부족</button>
+                        <button onclick="renderGallery('time_lack')" class="px-3 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-amber-50 hover:text-amber-600">시간 부족</button>
+                        <button onclick="renderGallery('hybrid_pressure')" class="px-3 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-purple-50 hover:text-purple-600">시간+실수</button>
+                    </div>
+                </div>
+                <div id="problem-gallery" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- 앱 전체 상태 및 로직 스크립트 -->
+    <script>
+        // 1. 기본 근본 원인 태그 목록
+        const DEFAULT_CAUSES = [
+            "개념 공식 암기 부족",
+            "풀이 접근법 발상 실패",
+            "앞 문제 시간 지연",
+            "계산 실수 (부호/산수)",
+            "문제 조건 해석 누락",
+            "선지 매력적 오답에 낚임",
+            "그래프/도형 시각화 부족"
+        ];
+
+        const DIAGNOSIS_META = {
+            skill_lack: { label: "순수 실력 부족", color: "#f43f5e", bg: "bg-rose-50", text: "text-rose-600", border: "border-rose-200" },
+            time_lack: { label: "절대 시간 부족", color: "#f59e0b", bg: "bg-amber-50", text: "text-amber-600", border: "border-amber-200" },
+            hybrid_pressure: { label: "시간 압박+실수", color: "#a855f7", bg: "bg-purple-50", text: "text-purple-600", border: "border-purple-200" },
+            careless: { label: "단순 부주의", color: "#0ea5e9", bg: "bg-sky-50", text: "text-sky-600", border: "border-sky-200" }
+        };
+
+        // 2. 초기 샘플 데이터 (SVG 기반 샘플 문제 이미지 포함)
+        function createSampleSvgImage(title, formula, bgHex) {
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="420" height="220" viewBox="0 0 420 220">
+                <rect width="420" height="220" fill="${bgHex}" rx="12"/>
+                <rect x="16" y="16" width="388" height="188" fill="#ffffff" rx="8" stroke="#e2e8f0" stroke-width="1.5"/>
+                <text x="32" y="48" font-family="sans-serif" font-size="14" font-weight="bold" fill="#334155">${title}</text>
+                <line x1="32" y1="62" x2="388" y2="62" stroke="#f1f5f9" stroke-width="2"/>
+                <text x="32" y="102" font-family="monospace" font-size="15" font-weight="bold" fill="#4f46e5">${formula}</text>
+                <text x="32" y="138" font-family="sans-serif" font-size="12" fill="#64748b">① 2√3    ② 3√2    ③ 4    ④ 3√3    ⑤ 6</text>
+                <rect x="32" y="160" width="120" height="26" rx="6" fill="#fef2f2"/>
+                <text x="44" y="177" font-family="sans-serif" font-size="11" font-weight="bold" fill="#e11d48">학생 오답 체크: ③</text>
+            </svg>`;
+            return "data:image/svg+xml;utf8," + encodeURIComponent(svg);
+        }
+
+        const INITIAL_PROBLEMS = [
+            {
+                id: "prob_1",
+                subject: "수학",
+                concept: "삼각함수 코사인법칙 활용",
+                diagnosisType: "skill_lack",
+                targetTime: 180,
+                actualTime: 420,
+                mastery: 0.35,
+                causes: ["풀이 접근법 발상 실패", "그래프/도형 시각화 부족"],
+                parentId: null,
+                memo: "보조선 그어서 원주각 성질 먼저 찾기",
+                image: createSampleSvgImage("[수학] 21번. 원에 내접하는 사각형과 코사인법칙", "AC² = AB² + BC² - 2·AB·BC·cos(θ)", "#f1f5f9"),
+                createdAt: "2026-11-20"
+            },
+            {
+                id: "prob_2",
+                subject: "수학",
+                concept: "미분가능성과 극한값 계산",
+                diagnosisType: "hybrid_pressure",
+                targetTime: 240,
+                actualTime: 390,
+                mastery: 0.65,
+                causes: ["앞 문제 시간 지연", "계산 실수 (부호/산수)", "풀이 접근법 발상 실패"],
+                parentId: "prob_1",
+                memo: "21번에서 시간 끌어서 22번 부호 실수함. 4분 넘기면 패스!",
+                image: createSampleSvgImage("[수학] 22번. 구간별 정의 함수의 미분가능성", "lim(x→a+) f'(x) = lim(x→a-) f'(x)", "#fef3c7"),
+                createdAt: "2026-11-21"
+            },
+            {
+                id: "prob_3",
+                subject: "영어",
+                concept: "빈칸 추론 (33번 고난도)",
+                diagnosisType: "time_lack",
+                targetTime: 150,
+                actualTime: 260,
+                mastery: 0.80,
+                causes: ["앞 문제 시간 지연", "선지 매력적 오답에 낚임"],
+                parentId: null,
+                memo: "순서배열에서 시간 뺏겨서 마지막 문장 못 읽고 찍음",
+                image: createSampleSvgImage("[영어] 33번. 다음 빈칸에 들어갈 말로 가장 적절한 것은?", "Not only does cognitive bias distort _____, but it also...", "#e0e7ff"),
+                createdAt: "2026-11-22"
+            },
+            {
+                id: "prob_4",
+                subject: "과학탐구",
+                concept: "역학적 에너지 보존과 빗면",
+                diagnosisType: "careless",
+                targetTime: 120,
+                actualTime: 110,
+                mastery: 0.85,
+                causes: ["문제 조건 해석 누락", "계산 실수 (부호/산수)"],
+                parentId: null,
+                memo: "마찰 구간 거리 2d인데 d로 대입함. 조건에 동그라미 치기",
+                image: createSampleSvgImage("[물리학I] 18번. 빗면 운동과 마찰 구간 에너지 손실", "ΔE_k + ΔE_p = -f · (2d)", "#fce7f3"),
+                createdAt: "2026-11-23"
+            }
+        ];
+
+        // 상태 변수
+        let problems = [];
+        let customCauses = [...DEFAULT_CAUSES];
+        let selectedCauses = new Set(["풀이 접근법 발상 실패"]);
+        let uploadedImageBase64 = "";
+
+        // 3. 초기화 및 스토리지 로드
+        function initApp() {
+            const saved = localStorage.getItem("odaplab_problems_v1");
+            const savedCauses = localStorage.getItem("odaplab_causes_v1");
+            
+            if (saved) {
+                problems = JSON.parse(saved);
+            } else {
+                problems = [...INITIAL_PROBLEMS];
+                saveToStorage();
+            }
+
+            if (savedCauses) {
+                customCauses = JSON.parse(savedCauses);
+            }
+
+            renderCauseChips();
+            updateParentProblemSelect();
+            updateTimeDisplay();
+            updateMasteryDisplay();
+            lucide.createIcons();
+        }
+
+        function saveToStorage() {
+            localStorage.setItem("odaplab_problems_v1", JSON.stringify(problems));
+            localStorage.setItem("odaplab_causes_v1", JSON.stringify(customCauses));
+        }
+
+        // 4. 탭 전환
+        function switchTab(tabName) {
+            ['register', 'map', 'analytics'].forEach(t => {
+                const viewEl = document.getElementById(`view-${t}`);
+                const btnEl = document.getElementById(`tab-${t}`);
+                if (t === tabName) {
+                    viewEl.classList.remove('hidden');
+                    if (t !== 'register') viewEl.classList.add('flex');
+                    btnEl.className = "tab-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold bg-white text-indigo-600 shadow-sm transition-all";
+                } else {
+                    viewEl.classList.add('hidden');
+                    viewEl.classList.remove('flex');
+                    btnEl.className = "tab-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900 transition-all";
+                }
+            });
+
+            if (tabName === 'map') {
+                setTimeout(renderCausalMap, 50);
+            } else if (tabName === 'analytics') {
+                renderAnalytics();
+            }
+            lucide.createIcons();
+        }
+
+        // 5. 문제 사진 업로드 & 클립보드 붙여넣기(Ctrl+V) 처리
+        function handleImageFile(file) {
+            if (!file || !file.type.startsWith('image/')) {
+                showToast("이미지 파일만 업로드할 수 있습니다.", "error");
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const MAX_W = 800;
+                    const scale = img.width > MAX_W ? MAX_W / img.width : 1;
+                    canvas.width = img.width * scale;
+                    canvas.height = img.height * scale;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    uploadedImageBase64 = canvas.toDataURL('image/jpeg', 0.82);
+
+                    const previewEl = document.getElementById('preview-image');
+                    previewEl.src = uploadedImageBase64;
+                    previewEl.classList.remove('hidden');
+                    document.getElementById('upload-placeholder').classList.add('hidden');
+                    document.getElementById('remove-img-btn').classList.remove('hidden');
+                    showToast("문제 사진이 등록되었습니다!", "success");
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function removeImage(e) {
+            e.stopPropagation();
+            uploadedImageBase64 = "";
+            document.getElementById('file-input').value = "";
+            document.getElementById('preview-image').classList.add('hidden');
+            document.getElementById('upload-placeholder').classList.remove('hidden');
+            document.getElementById('remove-img-btn').classList.add('hidden');
+        }
+
+        window.addEventListener('paste', (e) => {
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            for (let item of items) {
+                if (item.type.indexOf('image') === 0) {
+                    const file = item.getAsFile();
+                    handleImageFile(file);
+                    break;
+                }
+            }
+        });
+
+        const dropZone = document.getElementById('drop-zone');
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('border-indigo-500', 'bg-indigo-50/50');
+        });
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('border-indigo-500', 'bg-indigo-50/50');
+        });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-indigo-500', 'bg-indigo-50/50');
+            if (e.dataTransfer.files.length > 0) {
+                handleImageFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        // 6. 시간 & 이해도 슬라이더 및 AI 자동 분류 엔진
         function formatSeconds(sec) {
             const m = Math.floor(sec / 60);
             const s = sec % 60;
@@ -151,7 +709,6 @@
             }
         }
 
-        // [내장 머신러닝 추론 엔진] 코랩 학습 규칙 + 사용자 누적 데이터(KNN/가중치 앙상블) 기반 자동 판별
         function runAIDiagnosis() {
             const targetTime = parseInt(document.getElementById('target-time').value);
             const actualTime = parseInt(document.getElementById('actual-time').value);
@@ -159,7 +716,6 @@
             const skippedPrev = document.getElementById('input-skipped-prev').checked ? 1 : 0;
             const timeRatio = actualTime / targetTime;
 
-            // 1) 기본 사전 학습(Pre-trained) 확률 분포 계산
             let scores = {
                 skill_lack: 0.1,
                 time_lack: 0.1,
@@ -181,7 +737,7 @@
                 scores.careless += 0.68;
             }
 
-            // 2) 사용자가 직접 축적한 과거 오답 데이터 기반 개인화 보정 (KNN 유사도 가중치)
+            // 누적된 내 오답 데이터 기반 유사도 보정 (개인화 학습 반영)
             problems.forEach(p => {
                 const pRatio = p.actualTime / p.targetTime;
                 const pMastery = p.mastery !== undefined ? p.mastery : 0.6;
@@ -191,7 +747,6 @@
                 }
             });
 
-            // 최댓값 클래스 및 확신도 계산
             const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
             let bestType = 'skill_lack';
             let maxScore = -1;
@@ -203,11 +758,9 @@
             }
             const confidence = Math.min(98, Math.round((maxScore / totalScore) * 100));
 
-            // 라디오 버튼 자동 선택 반영
             const radio = document.querySelector(`input[name="diagnosisType"][value="${bestType}"]`);
             if (radio) radio.checked = true;
 
-            // 추천 원인 태그 자동 하이라이트
             selectedCauses.clear();
             if (bestType === 'skill_lack') {
                 selectedCauses.add("개념 공식 암기 부족");
@@ -222,7 +775,6 @@
             }
             renderCauseChips();
 
-            // 결과 배너 표시
             const banner = document.getElementById('ai-prediction-banner');
             const titleEl = document.getElementById('ai-pred-title');
             const reasonEl = document.getElementById('ai-pred-reason');
@@ -236,8 +788,56 @@
             showToast(`AI가 '${DIAGNOSIS_META[bestType].label}' 유형으로 자동 분류했습니다!`, "success");
             lucide.createIcons();
         }
-<!-- ... existing code ... -->
-        // 6. 새 오답 저장
+
+        function renderCauseChips() {
+            const container = document.getElementById('cause-chips');
+            container.innerHTML = "";
+            customCauses.forEach(cause => {
+                const isSelected = selectedCauses.has(cause);
+                const btn = document.createElement('button');
+                btn.type = "button";
+                btn.className = isSelected
+                    ? "px-3 py-1.5 rounded-full text-xs font-bold bg-indigo-600 text-white shadow-sm transition flex items-center gap-1"
+                    : "px-3 py-1.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition";
+                btn.innerHTML = isSelected ? `<span># ${cause}</span>` : `<span>+ ${cause}</span>`;
+                btn.onclick = () => {
+                    if (selectedCauses.has(cause)) {
+                        selectedCauses.delete(cause);
+                    } else {
+                        selectedCauses.add(cause);
+                    }
+                    renderCauseChips();
+                };
+                container.appendChild(btn);
+            });
+        }
+
+        function addCustomCause() {
+            const input = document.getElementById('custom-cause-input');
+            const val = input.value.trim();
+            if (!val) return;
+            if (!customCauses.includes(val)) {
+                customCauses.push(val);
+            }
+            selectedCauses.add(val);
+            input.value = "";
+            saveToStorage();
+            renderCauseChips();
+            showToast(`새 원인 노드 '${val}' 추가됨`, "success");
+        }
+
+        function updateParentProblemSelect() {
+            const select = document.getElementById('parent-problem-select');
+            select.innerHTML = '<option value="">연결할 이전 오답 없음 (독립 문항)</option>';
+            problems.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = `[${p.subject}] ${p.concept} (${DIAGNOSIS_META[p.diagnosisType].label})`;
+                select.appendChild(opt);
+            });
+        }
+
+        // 7. 새 오답 저장
         function saveProblem() {
             const subject = document.getElementById('input-subject').value;
             const concept = document.getElementById('input-concept').value.trim() || `${subject} 주요 문항`;
@@ -247,7 +847,18 @@
             const mastery = parseInt(document.getElementById('input-mastery').value) / 100;
             const parentId = document.getElementById('parent-problem-select').value || null;
             const memo = document.getElementById('input-memo').value.trim() || "핵심 조건 밑줄 긋고 시간 배분 준수하기";
-<!-- ... existing code ... -->
+
+            if (selectedCauses.size === 0) {
+                showToast("최소 1개 이상의 오답 원인 노드를 선택해주세요.", "error");
+                return;
+            }
+
+            const finalImage = uploadedImageBase64 || createSampleSvgImage(
+                `[${subject}] ${concept}`,
+                `목표 ${formatSeconds(targetTime)} vs 실제 ${formatSeconds(actualTime)}`,
+                "#f8fafc"
+            );
+
             const newProblem = {
                 id: "prob_" + Date.now(),
                 subject,
@@ -267,14 +878,396 @@
             saveToStorage();
             updateParentProblemSelect();
 
-            // 폼 초기화
             document.getElementById('input-concept').value = "";
             document.getElementById('input-memo').value = "";
             document.getElementById('ai-prediction-banner').classList.add('hidden');
             removeImage({ stopPropagation: () => {} });
 
             showToast("오답이 저장되고 AI 모델 학습 및 원인 지도에 반영되었습니다!", "success");
-            // 저장 후 바로 연결 지도로 이동해 시각적 피드백 제공
             setTimeout(() => switchTab('map'), 500);
         }
-<!-- ... existing code ... -->
+
+        // 8. 오답 원인 연결 지도 (SVG Network Graph) 렌더링
+        function renderCausalMap() {
+            const svg = document.getElementById('causal-svg');
+            const container = document.getElementById('map-container');
+            const filterSubj = document.getElementById('map-subject-filter').value;
+            const width = container.clientWidth || 720;
+            const height = container.clientHeight || 540;
+
+            svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+            svg.innerHTML = "";
+
+            const filteredProblems = filterSubj === 'ALL'
+                ? problems
+                : problems.filter(p => p.subject === filterSubj);
+
+            if (filteredProblems.length === 0) {
+                svg.innerHTML = `<text x="${width/2}" y="${height/2}" text-anchor="middle" fill="#94a3b8" font-size="14" font-weight="bold">해당 과목의 등록된 오답 노드가 없습니다.</text>`;
+                return;
+            }
+
+            const causeMap = {};
+            filteredProblems.forEach(p => {
+                p.causes.forEach(c => {
+                    if (!causeMap[c]) causeMap[c] = [];
+                    causeMap[c].push(p);
+                });
+            });
+
+            const causeKeys = Object.keys(causeMap);
+            const centerX = width / 2;
+            const centerY = height / 2;
+            const causeRadius = Math.min(width, height) * 0.22;
+            const problemRadius = Math.min(width, height) * 0.40;
+
+            const causeCoords = {};
+            causeKeys.forEach((c, idx) => {
+                const angle = (idx / causeKeys.length) * Math.PI * 2 - Math.PI / 2;
+                causeCoords[c] = {
+                    x: centerX + Math.cos(angle) * causeRadius,
+                    y: centerY + Math.sin(angle) * causeRadius,
+                    count: causeMap[c].length
+                };
+            });
+
+            const problemCoords = {};
+            filteredProblems.forEach((p, idx) => {
+                const angle = (idx / filteredProblems.length) * Math.PI * 2 - Math.PI / 3;
+                problemCoords[p.id] = {
+                    x: centerX + Math.cos(angle) * problemRadius,
+                    y: centerY + Math.sin(angle) * problemRadius,
+                    data: p
+                };
+            });
+
+            const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+            defs.innerHTML = `
+                <marker id="arrow-chain" markerWidth="8" markerHeight="8" refX="18" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L8,3 z" fill="#f43f5e" />
+                </marker>
+            `;
+            svg.appendChild(defs);
+
+            // 원인 -> 문제 연결선
+            filteredProblems.forEach(p => {
+                const pPos = problemCoords[p.id];
+                p.causes.forEach(c => {
+                    const cPos = causeCoords[c];
+                    if (!cPos) return;
+                    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                    line.setAttribute("x1", cPos.x);
+                    line.setAttribute("y1", cPos.y);
+                    line.setAttribute("x2", pPos.x);
+                    line.setAttribute("y2", pPos.y);
+                    line.setAttribute("stroke", "#cbd5e1");
+                    line.setAttribute("stroke-width", "1.8");
+                    svg.appendChild(line);
+                });
+
+                if (p.parentId && problemCoords[p.parentId]) {
+                    const parentPos = problemCoords[p.parentId];
+                    const chainLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                    chainLine.setAttribute("x1", parentPos.x);
+                    chainLine.setAttribute("y1", parentPos.y);
+                    chainLine.setAttribute("x2", pPos.x);
+                    chainLine.setAttribute("y2", pPos.y);
+                    chainLine.setAttribute("stroke", "#f43f5e");
+                    chainLine.setAttribute("stroke-width", "2.2");
+                    chainLine.setAttribute("stroke-dasharray", "5,4");
+                    chainLine.setAttribute("marker-end", "url(#arrow-chain)");
+                    svg.appendChild(chainLine);
+                }
+            });
+
+            // 문제 노드 그리기
+            filteredProblems.forEach(p => {
+                const pos = problemCoords[p.id];
+                const meta = DIAGNOSIS_META[p.diagnosisType];
+                const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                g.style.cursor = "pointer";
+                g.onclick = () => showProblemDetail(p);
+
+                const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                circle.setAttribute("cx", pos.x);
+                circle.setAttribute("cy", pos.y);
+                circle.setAttribute("r", "18");
+                circle.setAttribute("fill", meta.color);
+                circle.setAttribute("stroke", "#ffffff");
+                circle.setAttribute("stroke-width", "3");
+
+                const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                label.setAttribute("x", pos.x);
+                label.setAttribute("y", pos.y + 31);
+                label.setAttribute("text-anchor", "middle");
+                label.setAttribute("font-size", "11");
+                label.setAttribute("font-weight", "bold");
+                label.setAttribute("fill", "#1e293b");
+                const shortTitle = p.concept.length > 10 ? p.concept.slice(0, 10) + "…" : p.concept;
+                label.textContent = `[${p.subject}] ${shortTitle}`;
+
+                const iconTxt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                iconTxt.setAttribute("x", pos.x);
+                iconTxt.setAttribute("y", pos.y + 4);
+                iconTxt.setAttribute("text-anchor", "middle");
+                iconTxt.setAttribute("font-size", "10");
+                iconTxt.setAttribute("font-weight", "bold");
+                iconTxt.setAttribute("fill", "#ffffff");
+                iconTxt.textContent = "Q";
+
+                g.appendChild(circle);
+                g.appendChild(iconTxt);
+                g.appendChild(label);
+                svg.appendChild(g);
+            });
+
+            // 근본 원인 허브 노드 그리기
+            causeKeys.forEach(c => {
+                const pos = causeCoords[c];
+                const r = 22 + Math.min(pos.count * 4, 16);
+                const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                g.style.cursor = "pointer";
+                g.onclick = () => showCauseDetail(c, causeMap[c]);
+
+                const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                halo.setAttribute("cx", pos.x);
+                halo.setAttribute("cy", pos.y);
+                halo.setAttribute("r", r + 6);
+                halo.setAttribute("fill", "#e0e7ff");
+                halo.setAttribute("class", "node-pulse");
+
+                const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                circle.setAttribute("cx", pos.x);
+                circle.setAttribute("cy", pos.y);
+                circle.setAttribute("r", r);
+                circle.setAttribute("fill", "#4f46e5");
+                circle.setAttribute("stroke", "#ffffff");
+                circle.setAttribute("stroke-width", "3");
+
+                const countTxt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                countTxt.setAttribute("x", pos.x);
+                countTxt.setAttribute("y", pos.y + 4);
+                countTxt.setAttribute("text-anchor", "middle");
+                countTxt.setAttribute("font-size", "12");
+                countTxt.setAttribute("font-weight", "bold");
+                countTxt.setAttribute("fill", "#ffffff");
+                countTxt.textContent = `${pos.count}건`;
+
+                const labelBg = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                labelBg.setAttribute("x", pos.x);
+                labelBg.setAttribute("y", pos.y - r - 8);
+                labelBg.setAttribute("text-anchor", "middle");
+                labelBg.setAttribute("font-size", "11");
+                labelBg.setAttribute("font-weight", "800");
+                labelBg.setAttribute("fill", "#312e81");
+                labelBg.textContent = c;
+
+                g.appendChild(halo);
+                g.appendChild(circle);
+                g.appendChild(countTxt);
+                g.appendChild(labelBg);
+                svg.appendChild(g);
+            });
+        }
+
+        function showProblemDetail(p) {
+            const meta = DIAGNOSIS_META[p.diagnosisType];
+            const overTime = p.actualTime - p.targetTime;
+            const timeBadge = overTime > 0
+                ? `<span class="text-rose-600 font-bold">+${formatSeconds(overTime)} 초과</span>`
+                : `<span class="text-emerald-600 font-bold">시간 내 풀이</span>`;
+
+            document.getElementById('detail-title').textContent = `[${p.subject}] ${p.concept}`;
+            document.getElementById('detail-subtitle').innerHTML = `<span class="inline-block px-2 py-0.5 rounded text-[11px] font-bold ${meta.bg} ${meta.text}">${meta.label}</span> · ${p.createdAt}`;
+
+            document.getElementById('detail-content').innerHTML = `
+                <img src="${p.image}" alt="오답 사진" class="w-full rounded-xl border border-slate-200 object-contain max-h-48 bg-slate-50">
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/70 text-xs space-y-1.5">
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">소요 시간 분석:</span>
+                        <span>목표 ${formatSeconds(p.targetTime)} / 실제 ${formatSeconds(p.actualTime)} (${timeBadge})</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">연결된 근본 원인:</span>
+                        <span class="font-bold text-indigo-600">${p.causes.join(', ')}</span>
+                    </div>
+                </div>
+                <div class="p-3 rounded-xl bg-amber-50/70 border border-amber-200/70 text-xs">
+                    <div class="font-bold text-amber-800 mb-1">💡 행동 교정 처방</div>
+                    <p class="text-slate-700">${p.memo}</p>
+                </div>
+            `;
+
+            const actionBox = document.getElementById('detail-actions');
+            actionBox.classList.remove('hidden');
+            document.getElementById('delete-node-btn').onclick = () => {
+                problems = problems.filter(item => item.id !== p.id);
+                saveToStorage();
+                updateParentProblemSelect();
+                renderCausalMap();
+                showToast("오답 노트가 삭제되었습니다.", "success");
+            };
+        }
+
+        function showCauseDetail(causeName, linkedProblems) {
+            document.getElementById('detail-title').textContent = `원인 허브: ${causeName}`;
+            document.getElementById('detail-subtitle').textContent = `총 ${linkedProblems.length}개의 오답 문항과 직접 연결되어 있습니다.`;
+            document.getElementById('detail-actions').classList.add('hidden');
+
+            const listHtml = linkedProblems.map(p => {
+                const meta = DIAGNOSIS_META[p.diagnosisType];
+                return `
+                    <div class="p-3 rounded-xl border border-slate-200 hover:border-indigo-300 bg-white transition cursor-pointer" onclick='showProblemDetail(${JSON.stringify(p).replace(/'/g, "&apos;")})'>
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-xs font-bold text-slate-800">[${p.subject}] ${p.concept}</span>
+                            <span class="text-[10px] font-bold px-2 py-0.5 rounded ${meta.bg} ${meta.text}">${meta.label}</span>
+                        </div>
+                        <p class="text-[11px] text-slate-500 truncate">${p.memo}</p>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('detail-content').innerHTML = `
+                <div class="p-3 rounded-xl bg-indigo-50 border border-indigo-100 text-xs text-indigo-900">
+                    이 원인 하나만 교정해도 연결된 <strong>${linkedProblems.length}개 유형의 오답</strong>을 동시에 줄일 수 있습니다.
+                </div>
+                <div class="space-y-2">${listHtml}</div>
+            `;
+        }
+
+        // 9. 실력 부족 vs 시간 부족 정밀 분석 및 보관함 렌더링
+        function renderAnalytics() {
+            const total = problems.length || 1;
+            const counts = { skill_lack: 0, time_lack: 0, hybrid_pressure: 0, careless: 0 };
+            problems.forEach(p => {
+                if (counts[p.diagnosisType] !== undefined) counts[p.diagnosisType]++;
+            });
+
+            const skillPct = Math.round((counts.skill_lack / total) * 100);
+            const timePct = Math.round((counts.time_lack / total) * 100);
+            const hybridPct = Math.round((counts.hybrid_pressure / total) * 100);
+            const carelessPct = Math.max(0, 100 - skillPct - timePct - hybridPct);
+
+            document.getElementById('stat-skill-pct').textContent = `${skillPct}%`;
+            document.getElementById('stat-skill-count').textContent = `총 ${counts.skill_lack}문항 · 개념 재학습 필요`;
+
+            document.getElementById('stat-time-pct').textContent = `${timePct}%`;
+            document.getElementById('stat-time-count').textContent = `총 ${counts.time_lack}문항 · 타임어택 훈련 필요`;
+
+            document.getElementById('stat-hybrid-pct').textContent = `${hybridPct}%`;
+            document.getElementById('stat-hybrid-count').textContent = `총 ${counts.hybrid_pressure}문항 · 풀이 루틴 단축 필요`;
+
+            const titleEl = document.getElementById('ai-prescription-title');
+            const descEl = document.getElementById('ai-prescription-desc');
+            if (counts.time_lack + counts.hybrid_pressure > counts.skill_lack) {
+                titleEl.textContent = "시간 운영 전략 교정 시급!";
+                descEl.textContent = "틀린 문제의 절반 이상이 시간 압박에서 비롯되었습니다. 개념서 회독보다 실전 타이머 훈련과 '3분 패스 규칙'을 적용하세요.";
+            } else {
+                titleEl.textContent = "핵심 개념·발상 보완 우선!";
+                descEl.textContent = "시간이 주어져도 풀지 못한 순수 실력 부족 비중이 높습니다. 연결 지도의 최다 원인 태그 단원부터 개념을 재정립하세요.";
+            }
+
+            const bar = document.getElementById('ratio-bar-container');
+            bar.innerHTML = `
+                <div style="width: ${skillPct}%" class="bg-rose-500 transition-all" title="순수 실력 부족 ${skillPct}%"></div>
+                <div style="width: ${timePct}%" class="bg-amber-500 transition-all" title="절대 시간 부족 ${timePct}%"></div>
+                <div style="width: ${hybridPct}%" class="bg-purple-500 transition-all" title="시간 압박+실수 ${hybridPct}%"></div>
+                <div style="width: ${carelessPct}%" class="bg-sky-500 transition-all" title="단순 부주의 ${carelessPct}%"></div>
+            `;
+
+            document.getElementById('ratio-legend').innerHTML = `
+                <span class="text-rose-600">● 실력 부족 ${skillPct}%</span>
+                <span class="text-amber-600">● 시간 부족 ${timePct}%</span>
+                <span class="text-purple-600">● 시간+실수 ${hybridPct}%</span>
+                <span class="text-sky-600">● 단순 부주의 ${carelessPct}%</span>
+            `;
+
+            const overrunList = document.getElementById('time-overrun-list');
+            overrunList.innerHTML = problems.slice(0, 4).map(p => {
+                const ratio = Math.min(200, Math.round((p.actualTime / p.targetTime) * 100));
+                const isOver = p.actualTime > p.targetTime;
+                return `
+                    <div class="text-xs">
+                        <div class="flex justify-between font-semibold mb-1">
+                            <span class="text-slate-700">[${p.subject}] ${p.concept}</span>
+                            <span class="${isOver ? 'text-rose-600' : 'text-emerald-600'}">목표 ${formatSeconds(p.targetTime)} → 실제 ${formatSeconds(p.actualTime)}</span>
+                        </div>
+                        <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                            <div class="h-full ${isOver ? 'bg-rose-500' : 'bg-emerald-500'}" style="width: ${Math.min(100, ratio / 2)}%"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            const causeCounts = {};
+            problems.forEach(p => p.causes.forEach(c => causeCounts[c] = (causeCounts[c] || 0) + 1));
+            const sortedCauses = Object.entries(causeCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+            document.getElementById('top-causes-list').innerHTML = sortedCauses.map(([c, cnt], idx) => `
+                <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                    <div class="flex items-center gap-2.5">
+                        <span class="w-6 h-6 rounded-lg bg-indigo-600 text-white text-xs font-extrabold flex items-center justify-center">${idx + 1}</span>
+                        <span class="text-xs font-bold text-slate-800">${c}</span>
+                    </div>
+                    <span class="text-xs font-extrabold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full">${cnt}문항 연결</span>
+                </div>
+            `).join('');
+
+            renderGallery('ALL');
+        }
+
+        function renderGallery(filterType) {
+            const gallery = document.getElementById('problem-gallery');
+            const list = filterType === 'ALL' ? problems : problems.filter(p => p.diagnosisType === filterType);
+
+            gallery.innerHTML = list.map(p => {
+                const meta = DIAGNOSIS_META[p.diagnosisType];
+                return `
+                    <div class="rounded-xl border border-slate-200 overflow-hidden bg-white hover:shadow-md transition flex flex-col">
+                        <img src="${p.image}" alt="${p.concept}" class="w-full h-40 object-contain bg-slate-50 border-b border-slate-100">
+                        <div class="p-4 flex-1 flex flex-col justify-between">
+                            <div>
+                                <div class="flex items-center justify-between gap-2 mb-1.5">
+                                    <span class="text-xs font-extrabold text-indigo-600">${p.subject}</span>
+                                    <span class="text-[11px] font-bold px-2 py-0.5 rounded-full ${meta.bg} ${meta.text}">${meta.label}</span>
+                                </div>
+                                <h4 class="text-sm font-bold text-slate-900 mb-1">${p.concept}</h4>
+                                <p class="text-xs text-slate-500 mb-3">${p.memo}</p>
+                            </div>
+                            <div class="pt-2 border-t border-slate-100 flex flex-wrap gap-1">
+                                ${p.causes.map(c => `<span class="text-[10px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded">#${c}</span>`).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function exportDataJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(problems, null, 2));
+            const a = document.createElement('a');
+            a.setAttribute("href", dataStr);
+            a.setAttribute("download", `odaplab_backup_${new Date().toISOString().slice(0,10)}.json`);
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            showToast("오답 노트 JSON 데이터가 다운로드되었습니다.", "success");
+        }
+
+        function showToast(msg, type = "info") {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const bg = type === "error" ? "bg-rose-600" : "bg-slate-900";
+            toast.className = `${bg} text-white text-xs font-semibold px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 transition-all`;
+            toast.textContent = msg;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        window.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>
